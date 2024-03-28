@@ -1,0 +1,6 @@
+.root {
+    -fx-base: #333333; /* Основной цвет для тёмной темы */
+    -fx-background: #333333; /* Цвет фона */
+    -fx-control-inner-background: derive(-fx-base, 35%); /* Цвет внутреннего фона элементов управления */
+    -fx-text-fill: white; /* Цвет текста */
+}
