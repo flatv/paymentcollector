@@ -20,9 +20,12 @@ public class MergeServiceImpl implements MergeService {
 
     @Override
     public void merge(List<File> xmlFiles, String outputFilePath) {
-        List<File> validFiles = xmlFiles.stream()
-                .filter(xmlValidator::validate)
-                .toList();
-        fileMerger.merge(validFiles, outputFilePath);
+        for (File xmlFile : xmlFiles) {
+            if (!xmlValidator.validate(xmlFile)) {
+                log.error("При обработке файлов произошла ошибка");
+                throw new RuntimeException("Invalid XML file: " + xmlFile.getName());
+            }
+        }
+        fileMerger.merge(xmlFiles, outputFilePath);
     }
 }
