@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 
@@ -102,9 +104,8 @@ public class AppController {
             return;
         }
         String path = text.substring(text.indexOf(":") + 1);
-        File file = new File(path);
-        if (file.exists()) {
-            getHostServices().showDocument(file.getAbsolutePath());
+        if (Files.exists(Path.of(path.trim()))) {
+            getHostServices().showDocument(path);
         } else {
             log.error("File not found: {}", path);
         }
