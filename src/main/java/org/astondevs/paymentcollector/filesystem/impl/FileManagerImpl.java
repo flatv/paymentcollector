@@ -1,6 +1,5 @@
 package org.astondevs.paymentcollector.filesystem.impl;
 
-import lombok.NonNull;
 import org.astondevs.paymentcollector.filesystem.FileManager;
 
 import java.io.IOException;
@@ -24,8 +23,7 @@ public class FileManagerImpl implements FileManager {
             log.error("Directory not found: {}", directoryPath);
             return Collections.emptyList();
         }
-        Path dirPath = path;
-        try (Stream<Path> pathStream = Files.list(dirPath)) {
+        try (Stream<Path> pathStream = Files.list(path)) {
             List<String> list = pathStream
                     .map(Path::toString)
                     .filter(string -> string.endsWith(".xml") && !string.equals("Total.xml"))

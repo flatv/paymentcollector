@@ -30,10 +30,11 @@ public class XsdValidator implements XmlValidator {
         Validator validator = schema.newValidator();
         try {
             validator.validate(new StreamSource(file));
-            log.info("XML {} is valid", file.getName());
+            log.info("Файл {} прошел проверку", file.getName());
             return true;
         } catch (SAXException | IOException e) {
-            log.error("Failed to validate XML: {}", file.getName());
+            log.error("Файл {} не прошел проверку", file.getName());
+            log.error("Error: {}", e.getMessage());
             return false;
         }
     }
