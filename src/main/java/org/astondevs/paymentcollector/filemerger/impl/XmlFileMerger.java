@@ -22,12 +22,20 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class XmlFileMerger implements FileMerger {
 
     private static final long MAX_FILE_SIZE = 500 * 1024; // 500 KB
+
+    private static final int THREAD_POOL_SIZE = Runtime.getRuntime().availableProcessors();
+
+    private final ExecutorService executorService;
 
     private final Transformer transformer;
 
@@ -37,6 +45,8 @@ public class XmlFileMerger implements FileMerger {
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
+            executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+            log.info("Initialized XmlFileMerger, thread pool size: {}", THREAD_POOL_SIZE);
         } catch (TransformerConfigurationException e) {
             log.error("Error initializing XmlFileMerger: {}", e.getMessage());
             throw new RuntimeException(e);
@@ -78,49 +88,55 @@ public class XmlFileMerger implements FileMerger {
 
             mergeDoc.appendChild(documentRoot);
             for (File file : validFiles) {
-                Document doc = builder.parse(file);
-
-                NodeList documentTag = doc.getElementsByTagName("DOCUMENT");
-                NodeList bsHeadList = doc.getElementsByTagName("BSHead");
-
-                for (int i = 0; i < documentTag.getLength(); i++) {
-                    Node item = documentTag.item(i);
-                    Element document = mergeDoc.createElement("Document");
-                    for (int j = 0; j < item.getChildNodes().getLength(); j++) {
-                        Node childNode = item.getChildNodes().item(j);
-                        if (childNode.getNodeType() != Node.TEXT_NODE) {
-                            Node importedNode = mergeDoc.importNode(childNode, true);
-                            document.appendChild(importedNode);
-                        }
+                executorService.submit(() -> {
+                    Document doc = null;
+                    try {
+                        doc = builder.parse(file);
+                    } catch (SAXException | IOException e) {
+                        throw new RuntimeException(e);
                     }
-                    documents.appendChild(document);
-                }
 
-                for (int i = 0; i < bsHeadList.getLength(); i++) {
-                    Node node = bsHeadList.item(i);
-                    for (int j = 0; j < node.getChildNodes().getLength(); j++) {
-                        Node childNode = node.getChildNodes().item(j);
-                        if (childNode.getNodeType() != Node.TEXT_NODE) {
-                            Node importedNode = mergeDoc.importNode(childNode, true);
-                            bsHead.appendChild(importedNode);
-                        }
+                    NodeList documentTag = doc.getElementsByTagName("DOCUMENT");
+                    NodeList bsHeadList = doc.getElementsByTagName("BSHead");
+
+                    for (int i = 0; i < documentTag.getLength(); i++) {
+                        Node item = documentTag.item(i);
+                        Element document = mergeDoc.createElement("Document");
+                        importNode(mergeDoc, item, document);
+                        documents.appendChild(document);
                     }
-                }
-                bsMessage.appendChild(bsHead);
-                bsMessage.appendChild(documents);
+
+                    for (int i = 0; i < bsHeadList.getLength(); i++) {
+                        Node node = bsHeadList.item(i);
+                        importNode(mergeDoc, node, bsHead);
+                    }
+                    bsMessage.appendChild(bsHead);
+                    bsMessage.appendChild(documents);
+                });
 
                 if (getDocumentSize(mergeDoc) > MAX_FILE_SIZE) {
                     log.error("Document size exceeds the maximum size of {} KB", MAX_FILE_SIZE / 1024);
                     throw new RuntimeException("Document size exceeds the maximum size of " + MAX_FILE_SIZE / 1024 + " KB");
                 }
             }
+            executorService.shutdown();
             DOMSource source = new DOMSource(mergeDoc);
             StreamResult result = new StreamResult(new File(outputFilePath));
             transformer.transform(source, result);
             log.info("XML files merged to {}", outputFilePath);
             log.info("Файлы успешно обработаны");
-        } catch (TransformerException | ParserConfigurationException | IOException | SAXException e) {
+        } catch (TransformerException | ParserConfigurationException e) {
             log.error("Error merging XML files: {}", e.getMessage());
+        }
+    }
+
+    private void importNode(Document mergeDoc, Node item, Element document) {
+        for (int j = 0; j < item.getChildNodes().getLength(); j++) {
+            Node childNode = item.getChildNodes().item(j);
+            if (childNode.getNodeType() != Node.TEXT_NODE) {
+                Node importedNode = mergeDoc.importNode(childNode, true);
+                document.appendChild(importedNode);
+            }
         }
     }
 
